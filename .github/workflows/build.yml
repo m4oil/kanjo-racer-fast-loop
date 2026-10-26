@@ -1,0 +1,56 @@
+name: Build GBA ROM
+
+on:
+  push:
+  workflow_dispatch:      # lets you press "Run workflow" manually
+
+permissions:
+  contents: write         # needed to publish the ROM as a Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitarm:latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y git zip
+
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Build ROM
+        run: |
+          set -o pipefail
+          make 2>&1 | tee /build.log
+          ls -la kanjo_racer.gba
+
+      - name: Show build log (only runs if the build failed)
+        if: failure()
+        run: |
+          {
+            echo "## Build log - copy EVERYTHING inside this box and send it back"
+            echo '```'
+            head -c 7000 /build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          head -c 7000 /build.log
+
+      - name: Save ROM as downloadable build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kanjo_racer_rom
+          path: kanjo_racer.gba
+
+      - name: Publish ROM as a Release (direct download link)
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Kanjo Racer - Bear Products (latest build)
+          files: kanjo_racer.gba
